@@ -39,5 +39,16 @@ def get_by_id(id):
     except Exception as exception:
         return jsonify({ "error": str(exception) }), 500
     
+@app.route("/word_of_the_day")
+def get_word_of_the_day():
+    try:
+        with get_db_connection() as conn:
+            the_word = conn.get_word_of_the_day()
+            if not the_word:
+                return jsonify({ "error": f"Error taking the word of the day" }), 500
+            return jsonify(the_word), 200
+    except Exception as exception:
+        return jsonify({ "error": str(exception) }), 500
+    
 if __name__ == "__main__":
     app.run()

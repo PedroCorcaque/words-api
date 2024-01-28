@@ -85,3 +85,23 @@ class PostgreeDatabase:
             return word
         else:
             return {}
+
+    def get_word_of_the_day(self):
+        try:
+            self.cursor.execute(
+                "SELECT word_uuid FROM date_uuid WHERE date = CURRENT_DATE"
+            )
+            word_uuid = self.cursor.fetchone()
+
+            if word_uuid:
+                return self.find_by_id(word_uuid[0])
+            else:
+                self.cursor.execute(
+                    "INSERT INTO date_uuid (date, word_uuid) SELECT CURRENT_DATE, uuid FROM word_uuid OFFSET floor(random() * (SELECT COUNT(*) FROM word_uuid)) LIMIT 1 RETURNING word_uuid"
+                )
+                self.connection.commit()
+                word_uuid = self.cursor.fetchone()
+
+                return self.find_by_id(word_uuid[0]) if word_uuid else {}
+        except Exception as exception:
+            return {}
