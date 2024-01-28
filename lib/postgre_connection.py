@@ -85,23 +85,38 @@ class PostgreeDatabase:
             return word
         else:
             return {}
+        
+    def _get_existing_word_of_the_day(self):
+        self.cursor.execute(
+            "SELECT word_uuid FROM date_uuid WHERE date = CURRENT_DATE"
+        )
+        return self.cursor.fetchone()
+    
+    def _select_random_word_uuid(self):
+        self.cursor.execute(
+            "SELECT uuid FROM word_uuid WHERE uuid NOT IN (SELECT word_uuid FROM date_uuid) ORDER BY random() LIMIT 1"
+        )
+        return self.cursor.fetchone()
+    
+    def _insert_word_of_the_day(self, word_uuid):
+        self.cursor.execute(
+            "INSERT INTO date_uuid (date, word_uuid) VALUES (CURRENT_DATE, %s)", (word_uuid[0],)
+        )
+        self.connection.commit()
 
     def get_word_of_the_day(self):
         try:
-            self.cursor.execute(
-                "SELECT word_uuid FROM date_uuid WHERE date = CURRENT_DATE"
-            )
-            word_uuid = self.cursor.fetchone()
-
+            word_uuid = self._get_existing_word_of_the_day()
             if word_uuid:
                 return self.find_by_id(word_uuid[0])
             else:
-                self.cursor.execute(
-                    "INSERT INTO date_uuid (date, word_uuid) SELECT CURRENT_DATE, uuid FROM word_uuid OFFSET floor(random() * (SELECT COUNT(*) FROM word_uuid)) LIMIT 1 RETURNING word_uuid"
-                )
-                self.connection.commit()
-                word_uuid = self.cursor.fetchone()
-
-                return self.find_by_id(word_uuid[0]) if word_uuid else {}
+                word_uuid = self._select_random_word_uuid()
+                if word_uuid:
+                    self._insert_word_of_the_day(word_uuid[0])
+                    return self.find_by_id(word_uuid[0])
+                else:
+                    raise Exception("There no more unique words to set a new date.")
+        except psycopg2.Error as psycopg_error:
+            raise Exception("Database raised a exception") from psycopg_error
         except Exception as exception:
-            return {}
+            raise Exception("Exception on word_of_the_day") from exception
